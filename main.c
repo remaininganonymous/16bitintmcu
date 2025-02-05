@@ -25,7 +25,8 @@ double_repr;
 
 void print_array(uint16_t* in)
 {
-    for (int i = 0; i < SIZE_ARR; i++)
+    //for (int i = 0; i < SIZE_ARR; i++)
+    for (int i = SIZE_ARR-1; i >= 0; i--)
     {
         printf("%llx ", in[i]);
     }
@@ -65,10 +66,10 @@ double_repr arr_to_double_repr(uint16_t* in) //можно ускорить че�
 {
     double_repr num;
 
-    num.sign = (in[0] >> 15) & 0x0001;
-    num.exponent = (in[0] >> 4) & 0x7FF;
-    num.mantissa[0] = in[0] & 0x000F;
-    for (int i = 1; i < SIZE_ARR; i++)
+    num.sign = (in[SIZE_ARR-1] >> 15) & 0x0001;
+    num.exponent = (in[SIZE_ARR-1] >> 4) & 0x7FF;
+    num.mantissa[SIZE_ARR-1] = in[SIZE_ARR-1] & 0x000F;
+    for (int i = SIZE_ARR-2; i >= 0; i--)
     {
         num.mantissa[i] = in[i];
     }
@@ -78,10 +79,10 @@ double_repr arr_to_double_repr(uint16_t* in) //можно ускорить че�
 
 void double_repr_to_arr(double_repr* in, uint16_t* out)
 {
-    out[0] = in->sign << 15;
-    out[0] |= in->exponent << 4;
-    out[0] |= in->mantissa[0];
-    for (int i = 1; i < SIZE_ARR; i++)
+    out[SIZE_ARR-1] = in->sign << 15;
+    out[SIZE_ARR-1] |= in->exponent << 4;
+    out[SIZE_ARR-1] |= in->mantissa[SIZE_ARR-1];
+    for (int i = SIZE_ARR-2; i >= 0; i--)
     {
         out[i] = in->mantissa[i];
     }
@@ -97,36 +98,62 @@ void shift_mantissa_bits(double_repr* in, uint16_t exp_diff)
        позволить себе сдвинуть максимум на 52 бит влево */
     uint16_t shift = (exp_diff <= 52) ? exp_diff : 52;
     // увеличение экспоненты
-    in->exponent += shift;
+    in->exponent += shift; //?
     /* два случая: сдвиг на менее чем 16 бит и сдвиг на более чем 16 бит.
        в первом случае двигаем только побитово, а во втором сдвигаем
        и целые блоки по 16 бит */
+
+    // 402a 8000 0022 1111
     uint16_t shift_int = shift / PROCESSOR_BIT_DEPTH;
     uint16_t shift_fract = shift % PROCESSOR_BIT_DEPTH;
-    if (shift_int != 0)
-    {
-        in->mantissa[SIZE_ARR-1] = in->mantissa[SIZE_ARR-shift_int-1];
-        in->mantissa[SIZE_ARR-2] = (SIZE_ARR-2-shift_int >= 0) ? in->mantissa[SIZE_ARR-2-shift_int] : 0x0000;
-        in->mantissa[SIZE_ARR-3] = (SIZE_ARR-3-shift_int >= 0) ? in->mantissa[SIZE_ARR-3-shift_int] : 0x0000;
-        in->mantissa[SIZE_ARR-4] = 0x0000;
-    }
+
     if (shift_fract != 0)
     {
-        uint16_t mask = 0;
-        for (int i = SIZE_ARR-1; i >= 0; i--)
+        uint16_t buff = 0;
+        for (int i = 0; i < SIZE_ARR; i++)
         {
-            if (i-1 >= 0) mask = in->mantissa[i-1] << (PROCESSOR_BIT_DEPTH-shift_fract);
-            else mask = 0;
-            in->mantissa[i] = (in->mantissa[i] >> shift_fract) | mask;
+            if (i+1 < SIZE_ARR) buff = in->mantissa[i+1] << (PROCESSOR_BIT_DEPTH-shift_fract);
+            else buff = 0x002;
+            in->mantissa[i] = (in->mantissa[i] >> shift_fract) | buff;
         }
     }
+    if (shift_int != 0)
+    { 
+        in->mantissa[0] = in->mantissa[0+shift_int];
+        in->mantissa[1] = (1+shift_int < SIZE_ARR) ? in->mantissa[1+shift_int] : 0x0000;
+        in->mantissa[2] = (2+shift_int < SIZE_ARR) ? in->mantissa[2+shift_int] : 0x0000;
+        in->mantissa[3] = 0x0000;
+    }
+    
+
+    //после сдвига ищем ячейку, в которую "допишем" неявную единицу
+    // int target_index = -1;
+    // for (int i = SIZE_ARR-2; i >= 0 && target_index == -1; i--)
+    // {
+    //     if (in->mantissa[i+1] == 0 && in->mantissa[i] != 0)
+    //     {
+    //         if (in->mantissa[i] < 0x8000) target_index = i;
+    //         else target_index = i+1;
+    //     }
+    // }
+    // if (target_index == -1) target_index = SIZE_ARR-1;
+    // printf("TARGET INDEX: %d\n", target_index);
+    
+    // uint16_t implicit_bit = 1 << ;
+    // in->mantissa[target_index] |= implicit_bit;
+    // 1000000000000000
+    // 0000000011001000
+    // 0000 0000 A000 0022
+    // 000F a402 8000 0022
+    
     printf("after shift: ");
     print_array(in->mantissa);
 }
 
 void normalize_double(double_repr* in)
 {
-
+    in->sign = 0;
+    in->exponent = 0b10000000010; ////
 }
 
 void add(uint16_t* a, uint16_t* b, uint16_t* out) //
@@ -141,36 +168,35 @@ void add(uint16_t* a, uint16_t* b, uint16_t* out) //
     uint16_t least;
     if (a_repr.exponent < b_repr.exponent)
     {
-        least = a_repr.exponent;
+        //least = a_repr.exponent;
         uint16_t exponent_diff = b_repr.exponent - a_repr.exponent;
         if (exponent_diff > 0) shift_mantissa_bits(&a_repr, exponent_diff);
     }
     else
     {
-        least = b_repr.exponent;
+        //least = b_repr.exponent;
         uint16_t exponent_diff = a_repr.exponent - b_repr.exponent;
         if (exponent_diff > 0) shift_mantissa_bits(&b_repr, exponent_diff);
     }
-// 0 10000000010 1000000000000000000000000000000000000000000000000000 - 4028 0    0 0
-// 0 01111111111 0100000000000000000000000000000000000000000000000000 - 3ff4 0    0 0 +
-// 0 10000000010 1010100000000000000000000000000000000000000000000000 - 402a 8000 0 0
-//incorrect:
-// 1 00000000001 1100000000000000000000000000000000000000000000000000
+
     uint16_t excess = 0;
     for (int i = 0; i < SIZE_ARR; i++)
     {
+        least = (a_repr.mantissa[i] < b_repr.mantissa[i]) ? a_repr.mantissa[i] : b_repr.mantissa[i];
         sum.mantissa[i] = a_repr.mantissa[i] + b_repr.mantissa[i] + excess;
         excess = (sum.mantissa[i] < least) ? 1 : 0;
+        printf ("%llx < %llx\n", sum.mantissa[i], least);
     }
 
     normalize_double(&sum);
-    // sum.sign = 1;
-    // sum.exponent = 0b1000000001;
-    //printf("%x", 0x3ff8 + 0x4002);
     double_repr_to_arr(&sum, out);
 }
 
-
+// 0 10000000010 1000000000000000000000000000000000000000000000000000 - 4028 0    0 0
+//               1000000000000000000000000000000000000000000000000000 - 0008 0    0 0
+// 0 01111111111 0100000000000000000000000000000000000000000000000000 - 3ff4 0    0 0 +
+//               0010100000000000000000000000000000000000000000000000 - 0000 8    0 0
+// 0 10000000010 1010100000000000000000000000000000000000000000000000 - 402a 8000 0 0
 
 int main()
 {
