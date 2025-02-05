@@ -89,7 +89,7 @@ void double_repr_to_arr(double_repr* in, uint16_t* out)
     print_array(out);
 }
 
-void shift_mantissa_bits(double_repr* in, uint16_t exp_diff, uint16_t final_norm)
+void shift_mantissa_bits(double_repr* in, uint16_t exp_diff)
 {
     printf("before shift: ");
     print_array(in->mantissa);
@@ -111,9 +111,8 @@ void shift_mantissa_bits(double_repr* in, uint16_t exp_diff, uint16_t final_norm
         for (int i = 0; i < SIZE_ARR; i++)
         {
             if (i+1 < SIZE_ARR) buff = in->mantissa[i+1] << (PROCESSOR_BIT_DEPTH-shift_fract);
-            else buff = (final_norm == 0) ? 0x0002 : 0x0002;
+            else buff = 0x0002; //тут может быть подвох, наблюдать
             in->mantissa[i] = (in->mantissa[i] >> shift_fract) | buff;
-            
         }
     }
     if (shift_int != 0)
@@ -131,7 +130,9 @@ void shift_mantissa_bits(double_repr* in, uint16_t exp_diff, uint16_t final_norm
 void normalize_double(double_repr* in)
 {
     in->sign = 0;
-    shift_mantissa_bits(in, 1, 1);
+    printf("MANTISSA [4] = %llx\n", in->mantissa[SIZE_ARR-1]);
+    print_array(in->mantissa);
+    if ((in->mantissa[SIZE_ARR-1] >> 3) > 0) shift_mantissa_bits(in, 1); //как будто не соответствует с IEEE754
 }
 
 void add(uint16_t* a, uint16_t* b, uint16_t* out) //нужна поддержка вычитания
@@ -145,21 +146,20 @@ void add(uint16_t* a, uint16_t* b, uint16_t* out) //нужна поддержк�
     printf("exp_b = %d\n", b_repr.exponent);
     print_array(b_repr.mantissa);
 
-
-    uint16_t least;
     if (a_repr.exponent < b_repr.exponent)
     {
         uint16_t exponent_diff = b_repr.exponent - a_repr.exponent;
-        if (exponent_diff > 0) shift_mantissa_bits(&a_repr, exponent_diff, 0);
+        if (exponent_diff > 0) shift_mantissa_bits(&a_repr, exponent_diff);
         sum.exponent = b_repr.exponent;
     }
     else
     {
         uint16_t exponent_diff = a_repr.exponent - b_repr.exponent;
-        if (exponent_diff > 0) shift_mantissa_bits(&b_repr, exponent_diff, 0);
+        if (exponent_diff > 0) shift_mantissa_bits(&b_repr, exponent_diff);
         sum.exponent = a_repr.exponent;
     }
 
+    uint16_t least;
     uint16_t excess = 0;
     for (int i = 0; i < SIZE_ARR; i++)
     {
