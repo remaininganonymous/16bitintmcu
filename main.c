@@ -39,6 +39,7 @@ uint16_t power2(uint16_t x)
     {
         result *= 2;
     }
+
     return result;
 }
 
@@ -81,17 +82,11 @@ double_repr arr_to_double_repr(uint16_t* in)
     num.sign = (in[SIZE_ARR-1] >> 15) & 0x0001;
     num.exponent = (in[SIZE_ARR-1] >> 4) & 0x7FF;
     num.mantissa[SIZE_ARR-1] = in[SIZE_ARR-1] & 0x000F;
-    // while (mask - num.mantissa[SIZE_ARR-1] <= 0)
-    // {
-    //     pow++;
-    //     mask = power2(pow);
-    // }
-    // num.mantissa[SIZE_ARR-1] |= mask;
     for (int i = SIZE_ARR-2; i >= 0; i--)
     {
         num.mantissa[i] = in[i];
     }
-    printf("");
+
     return num;
 }
 
@@ -110,7 +105,7 @@ void double_repr_to_arr(double_repr* in, uint16_t* out)
 
 void shift_mantissa_bits_final(double_repr* in)
 {
-    in->exponent += 1; //?
+    in->exponent += 1; 
 
     printf("before final shift: ");
     print_array(in->mantissa);
@@ -128,16 +123,6 @@ void shift_mantissa_bits_final(double_repr* in)
             }
         }
     }
-
-    // int16_t mask = 0;
-    // uint16_t pow = -1;
-
-    // while (mask - (int16_t)in->mantissa[SIZE_ARR-1] <= 0)
-    // {
-    //     pow++;
-    //     mask = power2(pow);
-    // }
-    // in->mantissa[SIZE_ARR-1] &= (pow-1);
 
     printf("after final shift: ");
     print_array(in->mantissa);
@@ -190,10 +175,6 @@ void shift_mantissa_bits(double_repr* in, uint16_t exp_diff)
         in->mantissa[3] = 0x0000;
     }
 
-    // pow--;
-    // mask = power2(pow);
-    //in->mantissa[SIZE_ARR-1] |= mask;
-
     printf("after shift: ");
     print_array(in->mantissa);
 }
@@ -214,7 +195,7 @@ int normalize_double(double_repr* in)
     return 0;
 }
 
-void add(uint16_t* a, uint16_t* b, uint16_t* out) //нужна поддержка вычитания
+void add(uint16_t* a, uint16_t* b, uint16_t* out) //нужна поддержка вычитания и правильного округления
 {
     double_repr a_repr = arr_to_double_repr(a);
     double_repr b_repr = arr_to_double_repr(b);
@@ -353,12 +334,12 @@ void multiply(uint16_t* a, uint16_t* b, uint16_t* out)
 
 int main()
 {
-    double a = 3.1415926536;
-    double b = 2.7182818284;
-    a = 3.14;
-    b = 9.72;
-    a = 7.1415926536;
-    b = 2122.7182818284;
+    double a = 0.1415926536;
+    double b = 0.7182818284;
+    // a = 3.14;
+    // b = 9.72;
+    // a = 7.1415926536;
+    // b = 2122.7182818284;
     double c = a + b;
 
     printf("======= EXPECTED: =======\n");
@@ -372,29 +353,29 @@ int main()
     convert_double_to_arr(b, b_converted);
     uint16_t c_converted[SIZE_ARR];
     convert_double_to_arr(c, c_converted);
-    // uint16_t c_converted_mult[SIZE_ARR];
-    // convert_double_to_arr(a*b, c_converted_mult);
+    uint16_t c_converted_mult[SIZE_ARR];
+    convert_double_to_arr(a*b, c_converted_mult);
 
     uint16_t c_array_add[SIZE_ARR];
-    add(a_converted, b_converted, c_array_add); //криво - 2 и 9
-    // uint16_t c_array_mult[SIZE_ARR];
-    // multiply(a_converted, b_converted, c_array_mult);
+    add(a_converted, b_converted, c_array_add);
+    uint16_t c_array_mult[SIZE_ARR];
+    multiply(a_converted, b_converted, c_array_mult);
 
     printf("short arrays:\n");
     print_array(a_converted);
     print_array(b_converted);
     print_array(c_converted);
     print_array(c_array_add);
-    // print_array(c_converted_mult);
-    // print_array(c_array_mult);
+    print_array(c_converted_mult);
+    print_array(c_array_mult);
 
     double _a = convert_arr_to_double(a_converted);
     double _b = convert_arr_to_double(b_converted);
     double _c = convert_arr_to_double(c_array_add);
-    // double _cm = convert_arr_to_double(c_array_mult);
+    double _cm = convert_arr_to_double(c_array_mult);
 
     printf("back to double:\n");
-    printf("%.10f %.10f %.10f", _a, _b, _c);
+    printf("%.10f %.10f %.10f %.10f", _a, _b, _c, _cm);
 
     return 0;
 }
