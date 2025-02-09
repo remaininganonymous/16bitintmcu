@@ -46,6 +46,17 @@ void add_normalised_mantissas(uint16_t* a, uint16_t* b, uint16_t* out)
     }
 }
 
+void add_normalised_mantissas_sm(uint16_t* a, uint16_t* b, uint16_t* out)
+{
+    for (int i = 0; i < SIZE_ARR*2; i++)
+    {
+        uint16_t excess = 0;
+        uint16_t sum = excess;
+        add16(a[i], b[i], &sum, &excess);
+        out[i] = sum;
+        out[i+1] += excess;
+    }
+}
 
 // MREM:
 //                     a260 64c0 1bc0 cba0
@@ -73,6 +84,7 @@ int main ()
 
     uint16_t sm_rem[SIZE_ARR*2] = {0, 0, 0, 0, 0, 0, 0, 0};
     uint16_t sm_exc[SIZE_ARR*2] = {0, 0, 0, 0, 0, 0, 0, 0};
+    uint16_t sm[SIZE_ARR*2] = {0, 0, 0, 0, 0, 0, 0, 0};
     printf("\nMREM:\n");
     for (int i = 0; i < SIZE_ARR; i++)
     {
@@ -89,7 +101,6 @@ int main ()
 
     for (int i = 0; i < SIZE_ARR; i++)
     {
-        
         add_normalised_mantissas(m_rem[i], sm_rem+i, sm_rem+i);
     }
 
@@ -113,6 +124,27 @@ int main ()
         printf("\n");
     }
 
+
+    for (int i = 0; i < SIZE_ARR; i++)
+    {
+        add_normalised_mantissas(m_exc[i], sm_exc+1+i, sm_exc+1+i);
+    }
+
+    printf("\n");
+    for (int i = SIZE_ARR*2-1; i >= 0; i--)
+    {
+        printf("%04x ", sm_exc[i]);
+    }
+
+    // 0x 1003 b875 f279 28dc 831e 86ef 24d7 cba0
+    add_normalised_mantissas_sm(sm_exc, sm_rem, sm);
+    printf("\n");
+    printf("\n1003 b875 f279 28dc 831e 86ef 24d7 cba0\n");
+    for (int i = SIZE_ARR*2-1; i >= 0; i--)
+    {
+        printf("%04x ", sm[i]);
+    }
+    
     
     
     
