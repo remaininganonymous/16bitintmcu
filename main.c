@@ -210,6 +210,25 @@ void add_normalised_mantissas(double_repr* a, double_repr* b, double_repr* out)
     }
 }
 
+void add16(uint16_t a, uint16_t b, uint16_t *sum, uint16_t *carry) {
+    *sum = a + b;   
+    uint16_t least = (a < b) ? a : b;
+    *carry = (*sum < least) ? 1 : 0;
+}
+
+void add_normalised_mantissas_sm(uint16_t* a, uint16_t* b, uint16_t* out)
+{
+    uint16_t excess = 0;
+    uint16_t sum;
+    for (int i = 0; i < SIZE_ARR*2; i++)
+    {
+        out[i] += excess;
+        add16(a[i], b[i], &sum, &excess);
+        out[i] += sum; 
+    }
+}
+
+
 void add(uint16_t* a, uint16_t* b, uint16_t* out) //TODO: нужна поддержка вычитания и правильного округления
 {
     double_repr a_repr = arr_to_double_repr(a);
@@ -247,10 +266,10 @@ void multiply16(uint16_t a, uint16_t b, uint16_t *low, uint16_t *high)
     uint16_t b_L = b & 0xFF;
     uint16_t b_H = (b >> 8) & 0xFF;
 
-    uint16_t p1 = a_L * b_L;  // младшие 16 бит
-    uint16_t p2 = a_H * b_L;  // перенос в старшие биты
-    uint16_t p3 = a_L * b_H;  // перенос в старшие биты
-    uint16_t p4 = a_H * b_H;  // самые старшие 16 бит (переполнение)
+    uint16_t p1 = a_L * b_L;
+    uint16_t p2 = a_H * b_L;
+    uint16_t p3 = a_L * b_H;
+    uint16_t p4 = a_H * b_H;
 
     uint16_t mid = (p1 >> 8) + (p2 & 0xFF) + (p3 & 0xFF);
     *low = (p1 & 0xFF) | ((mid & 0xFF) << 8);
@@ -268,32 +287,40 @@ void multiply(uint16_t* a, uint16_t* b, uint16_t* out)
     printf("exp_b = %d\n", b_repr.exponent);
     print_array(b_repr.mantissa);
 
-    if (a_repr.exponent < b_repr.exponent) //TODO: упростить
-    {
-        const uint16_t exponent_diff = b_repr.exponent - a_repr.exponent;
-        if (exponent_diff > 0) shift_mantissa_bits(&a_repr, exponent_diff);
-    }
-    else
-    {
-        const uint16_t exponent_diff = a_repr.exponent - b_repr.exponent;
-        if (exponent_diff > 0) shift_mantissa_bits(&b_repr, exponent_diff);
-    }
+    const uint16_t exponent_diff = calculate_diff(a_repr.exponent, b_repr.exponent);
+    double_repr* repr_to_shift = (a_repr.exponent < b_repr.exponent) ? &a_repr: &b_repr;
+    shift_mantissa_bits(repr_to_shift, exponent_diff);
 
     //определение знака результата
     mult.sign = a_repr.sign ^ b_repr.sign;
 
     //умножение мантисс 
-    uint16_t excess = 0;
-    uint16_t rem = 0;
-    for (int b = 0; b < SIZE_ARR; b++)
+    uint16_t m_rem[SIZE_ARR][SIZE_ARR];
+    uint16_t m_exc[SIZE_ARR][SIZE_ARR];
+
+    for (int i = 0; i < SIZE_ARR; i++)
     {
-        for (int a = 0; a < SIZE_ARR; a++)
-        { 
-            multiply16(a_repr.mantissa[a], b_repr.mantissa[b], &rem, &excess);
-            if (a+b < SIZE_ARR) mult.mantissa[a+b] += rem;
-            if (a+b+1 < SIZE_ARR) mult.mantissa[a+b+1] += excess;
+        for (int j = 0; j < SIZE_ARR; j++)
+        {
+            multiply16(a_repr.mantissa[i], b_repr.mantissa[j], &m_rem[j][i], &m_exc[j][i]);
         }
     }
+
+    uint16_t sm_rem[SIZE_ARR*2] = {0, 0, 0, 0, 0, 0, 0, 0};
+    uint16_t sm_exc[SIZE_ARR*2] = {0, 0, 0, 0, 0, 0, 0, 0};
+    uint16_t sm[SIZE_ARR*2] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+    for (int i = 0; i < SIZE_ARR; i++)
+    {
+        add_normalised_mantissas(m_rem[i], sm_rem+i, sm_rem+i);
+    }
+
+    for (int i = 0; i < SIZE_ARR; i++)
+    {
+        add_normalised_mantissas(m_exc[i], sm_exc+1+i, sm_exc+1+i);
+    }
+
+    add_normalised_mantissas_sm(sm_exc, sm_rem, sm);
 
     //нормализация
     int status = normalize_double(&mult);
@@ -363,6 +390,7 @@ int main()
     print_array(b_converted);
     print_array(c_converted);
     print_array(c_array_add);
+    printf("mult:\n");
     print_array(c_converted_mult);
     print_array(c_array_mult);
 

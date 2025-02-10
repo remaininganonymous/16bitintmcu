@@ -19,10 +19,10 @@ void multiply16(uint16_t a, uint16_t b, uint16_t *low, uint16_t *high)
     uint16_t b_L = b & 0xFF;
     uint16_t b_H = (b >> 8) & 0xFF;
 
-    uint16_t p1 = a_L * b_L;  // младшие 16 бит
-    uint16_t p2 = a_H * b_L;  // перенос в старшие биты
-    uint16_t p3 = a_L * b_H;  // перенос в старшие биты
-    uint16_t p4 = a_H * b_H;  // самые старшие 16 бит (переполнение)
+    uint16_t p1 = a_L * b_L;
+    uint16_t p2 = a_H * b_L;
+    uint16_t p3 = a_L * b_H;
+    uint16_t p4 = a_H * b_H;
 
     uint16_t mid = (p1 >> 8) + (p2 & 0xFF) + (p3 & 0xFF);
     *low = (p1 & 0xFF) | ((mid & 0xFF) << 8);
@@ -30,8 +30,9 @@ void multiply16(uint16_t a, uint16_t b, uint16_t *low, uint16_t *high)
 }
 
 void add16(uint16_t a, uint16_t b, uint16_t *sum, uint16_t *carry) {
-    *sum = a + b;                  // Складываем числа
-    *carry = (*sum < a) ? 1 : 0;    // Если произошло переполнение, устанавливаем carry
+    *sum = a + b;   
+    uint16_t least = (a < b) ? a : b;
+    *carry = (*sum < least) ? 1 : 0;
 }
 
 void add_normalised_mantissas(uint16_t* a, uint16_t* b, uint16_t* out)
@@ -48,27 +49,20 @@ void add_normalised_mantissas(uint16_t* a, uint16_t* b, uint16_t* out)
 
 void add_normalised_mantissas_sm(uint16_t* a, uint16_t* b, uint16_t* out)
 {
+    uint16_t excess = 0;
+    uint16_t sum;
     for (int i = 0; i < SIZE_ARR*2; i++)
     {
-        uint16_t excess = 0;
-        uint16_t sum = excess;
+        out[i] += excess;
         add16(a[i], b[i], &sum, &excess);
-        out[i] = sum;
-        out[i+1] += excess;
+        out[i] += sum; 
     }
 }
 
-// MREM:
-//                     a260 64c0 1bc0 cba0
-//                a554 06a8 d8c8 deec
-//           69e7 98ce aca6 e5c9
-//      802d 375a 63a2 9063
-//       A142 A1C5 E613 2351 faac cba0
-// 802d a142 a1c5 e613 2351 faac cba0
 int main ()
 {
-    uint16_t a[SIZE_ARR] = {0x86e0, 0x5444, 0x21fb, 0x4009}; // 4009 21fb 5444 86e0
-    uint16_t b[SIZE_ARR] = {0x500b, 0x8b12, 0xbf0a, 0x4005}; // 4005 bf0a 8b12 500b
+    uint16_t a[SIZE_ARR] = {0x86e0, 0x5444, 0x21fb, 0x19}; // 9 21fb 5444 86e0
+    uint16_t b[SIZE_ARR] = {0x500b, 0x8b12, 0xbf0a, 0x15}; // 5 bf0a 8b12 500b
     
     uint16_t m_rem[SIZE_ARR][SIZE_ARR];
     uint16_t m_exc[SIZE_ARR][SIZE_ARR];
@@ -136,7 +130,6 @@ int main ()
         printf("%04x ", sm_exc[i]);
     }
 
-    // 0x 1003 b875 f279 28dc 831e 86ef 24d7 cba0
     add_normalised_mantissas_sm(sm_exc, sm_rem, sm);
     printf("\n");
     printf("\n1003 b875 f279 28dc 831e 86ef 24d7 cba0\n");
@@ -145,15 +138,5 @@ int main ()
         printf("%04x ", sm[i]);
     }
     
-    
-    
-    
-    // unsigned long long res = 0;
-    // for (int i = 0; i < SIZE_ARR*2; i++)
-    // {
-    //     res += sm_rem[i] << (i*);
-    // }
-    // printf("\n%llx\n", res);
-
     
 }
